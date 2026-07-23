@@ -1,0 +1,28 @@
+import fs from "node:fs";
+import { NextResponse } from "next/server";
+import { requireSession } from "@/lib/auth";
+import { getSopDocumentById, resolveSopDocumentDiskPath } from "@/lib/sopDocuments";
+
+type RouteContext = { params: Promise<{ id: string }> };
+
+export async function GET(_request: Request, { params }: RouteContext) {
+  const session = await requireSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { id } = await params;
+  const doc = getSopDocumentById(id);
+  if (!doc || doc.deleted_at) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  const diskPath = resolveSopDocumentDiskPath(doc);
+  if (!diskPath || !fs.existsSync(diskPath)) {
+    return NextResponse.json({ error: "File missing on disk" }, { status: 404 });
+  }
+
+  const bytes = fs.readFileSync(diskPath);
+  return new NextResponse(new Uint8Array(bytes), {
+    headers: {
+      "Content-Type": "application/octet-stream",
+      "Content-Disposition": `attachment; filename="${encodeURIComponent(doc.file_name ?? doc.title)}"`,
+    },
+  });
+}

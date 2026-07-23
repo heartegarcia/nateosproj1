@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/*
+ * Nate OS is light-themed only right now. Without this, browsers in OS dark
+ * mode render native form controls (input/select/textarea) with dark-mode
+ * UA text colors while our containers stay explicitly white — invisible
+ * white-on-white text. Forcing light here keeps native widgets consistent
+ * with the rest of the (all-light) UI.
+ */
+:root {
+  color-scheme: light;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.input-select {
+  @apply w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400 disabled:border-transparent disabled:bg-zinc-50 disabled:px-0 disabled:text-zinc-500;
+}
