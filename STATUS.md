@@ -112,8 +112,6 @@ These were explicitly scoped as post-MVP or "later" and haven't been started:
 - The Action Center **filter bar**'s project dropdown lists nested category projects flat (not
   grouped under their parent client). Filtering still works correctly; it's a cosmetic gap. Only
   the task-*creation* forms (Quick Add, Task Drawer) do the two-level Project → Category picker.
-- `README.md`'s "What's built" / "Not built yet" sections predate most of the work in this file and
-  are stale — trust this file over that section until README is refreshed.
 
 ## Notes for future development
 
