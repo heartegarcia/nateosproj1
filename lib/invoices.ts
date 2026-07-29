@@ -13,12 +13,12 @@ import type { Invoice } from "./types";
 
 const storageRoot = path.join(process.cwd(), "data", "invoices");
 
-export function listInvoices(): Invoice[] {
-  return db.prepare("SELECT * FROM invoices ORDER BY invoice_number DESC").all() as Invoice[];
+export async function listInvoices(): Promise<Invoice[]> {
+  return db.prepare("SELECT * FROM invoices ORDER BY invoice_number DESC").all<Invoice>();
 }
 
-export function getInvoiceById(id: string): Invoice | null {
-  return (db.prepare("SELECT * FROM invoices WHERE id = ?").get(id) as Invoice | undefined) ?? null;
+export async function getInvoiceById(id: string): Promise<Invoice | null> {
+  return (await db.prepare("SELECT * FROM invoices WHERE id = ?").get<Invoice>(id)) ?? null;
 }
 
 export function resolveInvoicePdfPath(invoice: Invoice): string | null {
@@ -26,8 +26,8 @@ export function resolveInvoicePdfPath(invoice: Invoice): string | null {
   return path.join(storageRoot, invoice.pdf_storage_path);
 }
 
-function getDefaultApprovalBusinessId(): string {
-  const businesses = listBusinesses();
+async function getDefaultApprovalBusinessId(): Promise<string> {
+  const businesses = await listBusinesses();
   const preferred = businesses.find((b) => b.name === "Personal / Executive Support");
   return (preferred ?? businesses[0]).id;
 }
@@ -39,16 +39,18 @@ export class NoUnbilledHoursError extends Error {
 }
 
 export async function generateInvoice(periodStart: string | null, periodEnd: string | null): Promise<Invoice> {
-  const candidates = listEntries({
-    unbilledOnly: true,
-    from: periodStart ?? undefined,
-    to: periodEnd ?? undefined,
-  }).filter((e) => e.end_time !== null);
+  const candidates = (
+    await listEntries({
+      unbilledOnly: true,
+      from: periodStart ?? undefined,
+      to: periodEnd ?? undefined,
+    })
+  ).filter((e) => e.end_time !== null);
 
   if (candidates.length === 0) throw new NoUnbilledHoursError();
 
   const totalHours = candidates.reduce((sum, e) => sum + e.hours, 0);
-  const settings = getInvoiceSettings();
+  const settings = await getInvoiceSettings();
   const hourlyRate = settings.hourly_rate ?? 0;
   const totalAmount = totalHours * hourlyRate;
 
@@ -56,26 +58,32 @@ export async function generateInvoice(periodStart: string | null, periodEnd: str
   const actualPeriodStart = periodStart ?? dates[0];
   const actualPeriodEnd = periodEnd ?? dates[dates.length - 1];
 
-  const maxNumber = db.prepare("SELECT COALESCE(MAX(invoice_number), 0) as m FROM invoices").get() as { m: number };
-  const invoiceNumber = maxNumber.m + 1;
+  // ::int cast — Postgres returns MAX()/COUNT() over integers as bigint, which the
+  // driver would otherwise hand back as a string.
+  const maxNumber = await db
+    .prepare("SELECT COALESCE(MAX(invoice_number), 0)::int as m FROM invoices")
+    .get<{ m: number }>();
+  const invoiceNumber = (maxNumber?.m ?? 0) + 1;
 
   const id = randomUUID();
   const now = new Date().toISOString();
-  db.prepare(
-    `INSERT INTO invoices (id, invoice_number, period_start, period_end, total_hours, hourly_rate, total_amount, status, created_at)
-     VALUES (@id, @invoiceNumber, @periodStart, @periodEnd, @totalHours, @hourlyRate, @totalAmount, 'draft', @now)`
-  ).run({
-    id,
-    invoiceNumber,
-    periodStart: actualPeriodStart,
-    periodEnd: actualPeriodEnd,
-    totalHours,
-    hourlyRate,
-    totalAmount,
-    now,
-  });
+  await db
+    .prepare(
+      `INSERT INTO invoices (id, invoice_number, period_start, period_end, total_hours, hourly_rate, total_amount, status, created_at)
+       VALUES (@id, @invoiceNumber, @periodStart, @periodEnd, @totalHours, @hourlyRate, @totalAmount, 'draft', @now)`
+    )
+    .run({
+      id,
+      invoiceNumber,
+      periodStart: actualPeriodStart,
+      periodEnd: actualPeriodEnd,
+      totalHours,
+      hourlyRate,
+      totalAmount,
+      now,
+    });
 
-  markEntriesBilled(
+  await markEntriesBilled(
     candidates.map((e) => e.id),
     id
   );
@@ -96,22 +104,23 @@ export async function generateInvoice(periodStart: string | null, periodEnd: str
   );
   const pdfFileName = `invoice-${invoiceNumber}.pdf`;
   fs.writeFileSync(path.join(storageRoot, pdfFileName), pdfBuffer);
-  db.prepare("UPDATE invoices SET pdf_storage_path = ? WHERE id = ?").run(pdfFileName, id);
+  await db.prepare("UPDATE invoices SET pdf_storage_path = ? WHERE id = ?").run(pdfFileName, id);
 
-  const task = createTask({
+  const businessId = await getDefaultApprovalBusinessId();
+  const task = await createTask({
     title: `Approve & pay Invoice #${invoiceNumber} — ${actualPeriodStart} to ${actualPeriodEnd}`,
-    businessId: getDefaultApprovalBusinessId(),
+    businessId,
     assignee: "nate",
     basePriority: "medium",
     notes: `Total: $${totalAmount.toFixed(2)} for ${totalHours.toFixed(2)} hours. Invoice attached below.`,
   });
-  db.prepare("UPDATE invoices SET approval_task_id = ? WHERE id = ?").run(task.id, id);
-  saveAttachmentFromBuffer(task.id, "Invoices", pdfFileName, pdfBuffer);
+  await db.prepare("UPDATE invoices SET approval_task_id = ? WHERE id = ?").run(task.id, id);
+  await saveAttachmentFromBuffer(task.id, "Invoices", pdfFileName, pdfBuffer);
 
-  return getInvoiceById(id)!;
+  return (await getInvoiceById(id))!;
 }
 
-export function markInvoicePaid(id: string): Invoice | null {
-  db.prepare("UPDATE invoices SET status = 'paid' WHERE id = ?").run(id);
+export async function markInvoicePaid(id: string): Promise<Invoice | null> {
+  await db.prepare("UPDATE invoices SET status = 'paid' WHERE id = ?").run(id);
   return getInvoiceById(id);
 }

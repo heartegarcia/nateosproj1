@@ -10,7 +10,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  return NextResponse.json({ attachments: listAttachments(id) });
+  return NextResponse.json({ attachments: await listAttachments(id) });
 }
 
 const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
@@ -20,7 +20,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const task = getTaskById(id);
+  const task = await getTaskById(id);
   if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 });
 
   const formData = await request.formData().catch(() => null);

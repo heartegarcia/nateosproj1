@@ -10,7 +10,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  return NextResponse.json({ fields: listProjectFields(id) });
+  return NextResponse.json({ fields: await listProjectFields(id) });
 }
 
 const createSchema = z.object({
@@ -32,6 +32,6 @@ export async function POST(request: Request, { params }: RouteContext) {
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const field = createProjectField(id, parsed.data);
+  const field = await createProjectField(id, parsed.data);
   return NextResponse.json({ field }, { status: 201 });
 }

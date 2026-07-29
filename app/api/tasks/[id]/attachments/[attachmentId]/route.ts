@@ -10,7 +10,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id, attachmentId } = await params;
-  const attachment = getAttachmentById(attachmentId);
+  const attachment = await getAttachmentById(attachmentId);
   if (!attachment || attachment.task_id !== id || attachment.deleted_at) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -35,11 +35,11 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id, attachmentId } = await params;
-  const attachment = getAttachmentById(attachmentId);
+  const attachment = await getAttachmentById(attachmentId);
   if (!attachment || attachment.task_id !== id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  softDeleteAttachment(attachmentId);
+  await softDeleteAttachment(attachmentId);
   return NextResponse.json({ ok: true });
 }

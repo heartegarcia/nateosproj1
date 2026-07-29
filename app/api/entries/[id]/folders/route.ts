@@ -10,7 +10,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  return NextResponse.json({ folders: listEntryFolders(id) });
+  return NextResponse.json({ folders: await listEntryFolders(id) });
 }
 
 const createSchema = z.object({ name: z.string().min(1) });
@@ -24,6 +24,6 @@ export async function POST(request: Request, { params }: RouteContext) {
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  createEntryFolder(id, parsed.data.name);
-  return NextResponse.json({ folders: listEntryFolders(id) }, { status: 201 });
+  await createEntryFolder(id, parsed.data.name);
+  return NextResponse.json({ folders: await listEntryFolders(id) }, { status: 201 });
 }

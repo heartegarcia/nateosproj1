@@ -25,15 +25,15 @@ function hydrate(row: TimeEntryRow): TimeEntry {
   return { ...row, hours: computeHours(row.start_time, row.end_time) };
 }
 
-export function getRunningEntry(): TimeEntry | null {
-  const row = db
+export async function getRunningEntry(): Promise<TimeEntry | null> {
+  const row = await db
     .prepare("SELECT * FROM time_entries WHERE end_time IS NULL AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1")
-    .get() as TimeEntryRow | undefined;
+    .get<TimeEntryRow>();
   return row ? hydrate(row) : null;
 }
 
-export function getEntryById(id: string): TimeEntry | null {
-  const row = db.prepare("SELECT * FROM time_entries WHERE id = ?").get(id) as TimeEntryRow | undefined;
+export async function getEntryById(id: string): Promise<TimeEntry | null> {
+  const row = await db.prepare("SELECT * FROM time_entries WHERE id = ?").get<TimeEntryRow>(id);
   return row ? hydrate(row) : null;
 }
 
@@ -44,7 +44,7 @@ export interface TimeEntryFilters {
   invoiceId?: string;
 }
 
-export function listEntries(filters: TimeEntryFilters = {}): TimeEntry[] {
+export async function listEntries(filters: TimeEntryFilters = {}): Promise<TimeEntry[]> {
   const clauses = ["deleted_at IS NULL"];
   const params: Record<string, unknown> = {};
 
@@ -64,42 +64,45 @@ export function listEntries(filters: TimeEntryFilters = {}): TimeEntry[] {
     params.invoiceId = filters.invoiceId;
   }
 
-  const rows = db
-    .prepare(`SELECT * FROM time_entries WHERE ${clauses.join(" AND ")} ORDER BY work_date DESC, start_time DESC`)
-    .all(params) as TimeEntryRow[];
+  const sql = `SELECT * FROM time_entries WHERE ${clauses.join(" AND ")} ORDER BY work_date DESC, start_time DESC`;
+  // An empty params object would be treated as "no named parameters", which is correct
+  // here — the query only contains @placeholders when a matching filter was supplied.
+  const rows = await db.prepare(sql).all<TimeEntryRow>(params);
   return rows.map(hydrate);
 }
 
-export function clockIn(workDate: string, startTime: string): TimeEntry {
+export async function clockIn(workDate: string, startTime: string): Promise<TimeEntry> {
   const id = randomUUID();
-  db.prepare(
-    `INSERT INTO time_entries (id, work_date, start_time, created_at) VALUES (@id, @workDate, @startTime, @now)`
-  ).run({ id, workDate, startTime, now: new Date().toISOString() });
-  return getEntryById(id)!;
+  await db
+    .prepare(`INSERT INTO time_entries (id, work_date, start_time, created_at) VALUES (@id, @workDate, @startTime, @now)`)
+    .run({ id, workDate, startTime, now: new Date().toISOString() });
+  return (await getEntryById(id))!;
 }
 
-export function clockOut(id: string, endTime: string): TimeEntry | null {
-  db.prepare("UPDATE time_entries SET end_time = @endTime WHERE id = @id").run({ id, endTime });
+export async function clockOut(id: string, endTime: string): Promise<TimeEntry | null> {
+  await db.prepare("UPDATE time_entries SET end_time = @endTime WHERE id = @id").run({ id, endTime });
   return getEntryById(id);
 }
 
-export function createManualEntry(input: CreateTimeEntryInput): TimeEntry {
+export async function createManualEntry(input: CreateTimeEntryInput): Promise<TimeEntry> {
   const id = randomUUID();
-  db.prepare(
-    `INSERT INTO time_entries (id, work_date, start_time, end_time, notes, created_at)
-     VALUES (@id, @workDate, @startTime, @endTime, @notes, @now)`
-  ).run({
-    id,
-    workDate: input.workDate,
-    startTime: input.startTime,
-    endTime: input.endTime ?? null,
-    notes: input.notes ?? null,
-    now: new Date().toISOString(),
-  });
-  return getEntryById(id)!;
+  await db
+    .prepare(
+      `INSERT INTO time_entries (id, work_date, start_time, end_time, notes, created_at)
+       VALUES (@id, @workDate, @startTime, @endTime, @notes, @now)`
+    )
+    .run({
+      id,
+      workDate: input.workDate,
+      startTime: input.startTime,
+      endTime: input.endTime ?? null,
+      notes: input.notes ?? null,
+      now: new Date().toISOString(),
+    });
+  return (await getEntryById(id))!;
 }
 
-export function updateEntry(id: string, input: UpdateTimeEntryInput): TimeEntry | null {
+export async function updateEntry(id: string, input: UpdateTimeEntryInput): Promise<TimeEntry | null> {
   const fields: string[] = [];
   const params: Record<string, unknown> = { id };
 
@@ -117,18 +120,22 @@ export function updateEntry(id: string, input: UpdateTimeEntryInput): TimeEntry 
   }
   if (fields.length === 0) return getEntryById(id);
 
-  db.prepare(`UPDATE time_entries SET ${fields.join(", ")} WHERE id = @id`).run(params);
+  await db.prepare(`UPDATE time_entries SET ${fields.join(", ")} WHERE id = @id`).run(params);
   return getEntryById(id);
 }
 
-export function softDeleteEntry(id: string): void {
-  db.prepare("UPDATE time_entries SET deleted_at = @now WHERE id = @id").run({ id, now: new Date().toISOString() });
+export async function softDeleteEntry(id: string): Promise<void> {
+  await db
+    .prepare("UPDATE time_entries SET deleted_at = @now WHERE id = @id")
+    .run({ id, now: new Date().toISOString() });
 }
 
-export function markEntriesBilled(entryIds: string[], invoiceId: string): void {
-  const stmt = db.prepare("UPDATE time_entries SET invoice_id = @invoiceId WHERE id = @id");
-  const tx = db.transaction((ids: string[]) => {
-    for (const id of ids) stmt.run({ id, invoiceId });
-  });
-  tx(entryIds);
+/** Single statement so a batch of entries can never be half-marked if something fails
+ * midway (previously a per-row loop inside a SQLite transaction). */
+export async function markEntriesBilled(entryIds: string[], invoiceId: string): Promise<void> {
+  if (entryIds.length === 0) return;
+  const placeholders = entryIds.map(() => "?").join(",");
+  await db
+    .prepare(`UPDATE time_entries SET invoice_id = ? WHERE id IN (${placeholders})`)
+    .run(invoiceId, ...entryIds);
 }

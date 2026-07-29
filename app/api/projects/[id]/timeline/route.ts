@@ -9,5 +9,5 @@ export async function GET(_request: Request, { params }: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  return NextResponse.json({ items: getClientTimeline(id) });
+  return NextResponse.json({ items: await getClientTimeline(id) });
 }

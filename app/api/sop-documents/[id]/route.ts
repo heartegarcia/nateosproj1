@@ -10,6 +10,6 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   if (session.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
-  softDeleteSopDocument(id);
+  await softDeleteSopDocument(id);
   return NextResponse.json({ ok: true });
 }

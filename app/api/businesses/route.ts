@@ -7,7 +7,7 @@ export async function GET() {
   const session = await requireSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  return NextResponse.json({ businesses: listBusinesses() });
+  return NextResponse.json({ businesses: await listBusinesses() });
 }
 
 const createSchema = z.object({
@@ -24,6 +24,6 @@ export async function POST(request: Request) {
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const business = createBusiness(parsed.data);
+  const business = await createBusiness(parsed.data);
   return NextResponse.json({ business }, { status: 201 });
 }

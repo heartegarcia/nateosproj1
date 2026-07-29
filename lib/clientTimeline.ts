@@ -9,18 +9,18 @@ import type { TimelineItem } from "./types";
  * see exactly how the engagement evolved (Transcript 001 -> Prompt V1 -> Mockup V1 ->
  * V2 -> Final -> Presentation) without hopping between four separate folders.
  */
-export function getClientTimeline(clientProjectId: string): TimelineItem[] {
-  const categories = listChildProjects(clientProjectId);
+export async function getClientTimeline(clientProjectId: string): Promise<TimelineItem[]> {
+  const categories = await listChildProjects(clientProjectId);
   if (categories.length === 0) return [];
 
   const items: TimelineItem[] = [];
 
   for (const category of categories) {
-    const entries = db
+    const entries = await db
       .prepare(
         "SELECT id, title, created_at FROM project_entries WHERE project_id = ? AND deleted_at IS NULL ORDER BY created_at ASC"
       )
-      .all(category.id) as { id: string; title: string; created_at: string }[];
+      .all<{ id: string; title: string; created_at: string }>(category.id);
 
     for (const entry of entries) {
       const entryHref = `/businesses/${category.business_id}/projects/${category.id}/entries/${entry.id}`;
@@ -34,11 +34,11 @@ export function getClientTimeline(clientProjectId: string): TimelineItem[] {
         entryHref,
       });
 
-      const attachments = db
+      const attachments = await db
         .prepare(
           "SELECT id, file_name, uploaded_at FROM entry_attachments WHERE entry_id = ? AND deleted_at IS NULL ORDER BY uploaded_at ASC"
         )
-        .all(entry.id) as { id: string; file_name: string; uploaded_at: string }[];
+        .all<{ id: string; file_name: string; uploaded_at: string }>(entry.id);
       for (const a of attachments) {
         items.push({
           id: `attachment-${a.id}`,

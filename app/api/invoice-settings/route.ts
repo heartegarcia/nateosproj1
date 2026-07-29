@@ -7,7 +7,7 @@ export async function GET() {
   const session = await requireSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  return NextResponse.json({ settings: getInvoiceSettings() });
+  return NextResponse.json({ settings: await getInvoiceSettings() });
 }
 
 const schema = z.object({
@@ -26,6 +26,6 @@ export async function PATCH(request: Request) {
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const settings = updateInvoiceSettings(parsed.data);
+  const settings = await updateInvoiceSettings(parsed.data);
   return NextResponse.json({ settings });
 }

@@ -12,10 +12,10 @@ export async function GET(request: Request) {
   const parentId = url.searchParams.get("parentId");
 
   const projects = parentId
-    ? listChildProjects(parentId)
+    ? await listChildProjects(parentId)
     : businessId
-      ? listProjectsByBusiness(businessId)
-      : listAllProjects();
+      ? await listProjectsByBusiness(businessId)
+      : await listAllProjects();
   return NextResponse.json({ projects });
 }
 
@@ -37,6 +37,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const project = createProject(parsed.data);
+  const project = await createProject(parsed.data);
   return NextResponse.json({ project }, { status: 201 });
 }

@@ -10,7 +10,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const slot = getSlotById(id);
+  const slot = await getSlotById(id);
   if (!slot) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ slot });
 }
@@ -26,7 +26,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const slot = setDriveLink(id, parsed.data.driveLink);
+  const slot = await setDriveLink(id, parsed.data.driveLink);
   if (!slot) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ slot });
 }

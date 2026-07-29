@@ -10,7 +10,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { attachmentId } = await params;
-  const attachment = getAttachmentById(attachmentId);
+  const attachment = await getAttachmentById(attachmentId);
   if (!attachment || attachment.deleted_at) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const diskPath = resolveSlotAttachmentDiskPath(attachment);
@@ -30,6 +30,6 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { attachmentId } = await params;
-  softDeleteSlotAttachment(attachmentId);
+  await softDeleteSlotAttachment(attachmentId);
   return NextResponse.json({ ok: true });
 }

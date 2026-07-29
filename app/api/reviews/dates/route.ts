@@ -6,5 +6,5 @@ export async function GET() {
   const session = await requireSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  return NextResponse.json({ dates: listReviewDates() });
+  return NextResponse.json({ dates: await listReviewDates() });
 }

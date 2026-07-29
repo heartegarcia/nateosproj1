@@ -11,9 +11,9 @@ export default async function EntryDetailPage({
   params: Promise<{ id: string; projectId: string; entryId: string }>;
 }) {
   const { id, projectId, entryId } = await params;
-  const business = getBusinessById(id);
-  const project = getProjectById(projectId);
-  const entry = getEntryById(entryId);
+  const business = await getBusinessById(id);
+  const project = await getProjectById(projectId);
+  const entry = await getEntryById(entryId);
   if (!business || !project || !entry || project.business_id !== business.id || entry.project_id !== project.id) {
     notFound();
   }
@@ -21,6 +21,12 @@ export default async function EntryDetailPage({
   const session = await getSession();
 
   return (
-    <EntryDetailClient business={business} project={project} initialEntry={entry} role={session.role ?? "executive"} />
+    <EntryDetailClient
+      key={entry.id}
+      business={business}
+      project={project}
+      initialEntry={entry}
+      role={session.role ?? "executive"}
+    />
   );
 }

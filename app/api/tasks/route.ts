@@ -26,7 +26,7 @@ export async function GET(request: Request) {
   const todayParam = sp.get("today");
   const today = todayParam ? new Date(todayParam + "T12:00:00") : new Date();
 
-  const tasks = listTasks(filters, today);
+  const tasks = await listTasks(filters, today);
   return NextResponse.json({ tasks });
 }
 
@@ -53,8 +53,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const task = createTask(parsed.data);
-  syncEntryForTask(task.id, task.project_id, task.title);
-  syncSocialSlotForTask(task);
+  const task = await createTask(parsed.data);
+  await syncEntryForTask(task.id, task.project_id, task.title);
+  await syncSocialSlotForTask(task);
   return NextResponse.json({ task }, { status: 201 });
 }

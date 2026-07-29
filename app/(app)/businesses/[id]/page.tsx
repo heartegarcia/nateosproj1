@@ -5,10 +5,10 @@ import { BusinessDetailClient } from "@/components/BusinessDetailClient";
 
 export default async function BusinessDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const business = getBusinessById(id);
+  const business = await getBusinessById(id);
   if (!business) notFound();
 
   const session = await getSession();
 
-  return <BusinessDetailClient business={business} role={session.role ?? "executive"} />;
+  return <BusinessDetailClient key={business.id} business={business} role={session.role ?? "executive"} />;
 }

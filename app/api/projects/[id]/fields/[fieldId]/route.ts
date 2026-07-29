@@ -10,6 +10,6 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   if (session.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { fieldId } = await params;
-  deleteProjectField(fieldId);
+  await deleteProjectField(fieldId);
   return NextResponse.json({ ok: true });
 }

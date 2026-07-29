@@ -6,11 +6,11 @@ import { db } from "../lib/db";
 const today = new Date();
 const d = (offset: number) => format(addDays(today, offset), "yyyy-MM-dd");
 
-function reset() {
-  db.exec("DELETE FROM tasks; DELETE FROM projects; DELETE FROM businesses; DELETE FROM users;");
+async function reset() {
+  await db.exec("DELETE FROM tasks; DELETE FROM projects; DELETE FROM businesses; DELETE FROM users;");
 }
 
-function seedUsers() {
+async function seedUsers() {
   const users = [
     {
       id: randomUUID(),
@@ -31,7 +31,7 @@ function seedUsers() {
     `INSERT INTO users (id, email, password_hash, display_name, role, created_at) VALUES (@id, @email, @password_hash, @display_name, @role, @created_at)`
   );
   for (const u of users) {
-    stmt.run({
+    await stmt.run({
       id: u.id,
       email: u.email,
       password_hash: bcrypt.hashSync(u.password, 10),
@@ -44,7 +44,7 @@ function seedUsers() {
   for (const u of users) console.log(`  ${u.display_name}: ${u.email} / ${u.password}`);
 }
 
-function seedBusinesses() {
+async function seedBusinesses() {
   const businesses = [
     { name: "Business On Purpose", color: "#6366f1" },
     { name: "MyHousePlans", color: "#10b981" },
@@ -56,15 +56,15 @@ function seedBusinesses() {
     `INSERT INTO businesses (id, name, color, sort_order, created_at) VALUES (@id, @name, @color, @sort_order, @created_at)`
   );
   const ids: Record<string, string> = {};
-  businesses.forEach((b, i) => {
+  for (const [i, b] of businesses.entries()) {
     const id = randomUUID();
     ids[b.name] = id;
-    stmt.run({ id, name: b.name, color: b.color, sort_order: i, created_at: new Date().toISOString() });
-  });
+    await stmt.run({ id, name: b.name, color: b.color, sort_order: i, created_at: new Date().toISOString() });
+  }
   return ids;
 }
 
-function seedProjects(businessIds: Record<string, string>) {
+async function seedProjects(businessIds: Record<string, string>) {
   const projects = [
     { business: "Business On Purpose", name: "Q3 Coaching Cohort" },
     { business: "MyHousePlans", name: "Website Relaunch" },
@@ -79,7 +79,7 @@ function seedProjects(businessIds: Record<string, string>) {
   for (const p of projects) {
     const id = randomUUID();
     ids[p.name] = id;
-    stmt.run({
+    await stmt.run({
       id,
       business_id: businessIds[p.business],
       name: p.name,
@@ -92,7 +92,7 @@ function seedProjects(businessIds: Record<string, string>) {
   return ids;
 }
 
-function seedTasks(businessIds: Record<string, string>, projectIds: Record<string, string>) {
+async function seedTasks(businessIds: Record<string, string>, projectIds: Record<string, string>) {
   const stmt = db.prepare(
     `INSERT INTO tasks (id, title, business_id, project_id, assignee, status, base_priority, due_date, notes, channels, created_at, completed_at)
      VALUES (@id, @title, @business_id, @project_id, @assignee, @status, @base_priority, @due_date, @notes, @channels, @created_at, @completed_at)`
@@ -262,7 +262,7 @@ function seedTasks(businessIds: Record<string, string>, projectIds: Record<strin
         : "completed_offset" in r && r.completed_offset !== undefined
           ? subDays(today, Math.abs(r.completed_offset)).toISOString()
           : null;
-    stmt.run({
+    await stmt.run({
       id: randomUUID(),
       title: r.title,
       business_id: businessIds[r.business],
@@ -280,9 +280,17 @@ function seedTasks(businessIds: Record<string, string>, projectIds: Record<strin
   console.log(`Seeded ${rows.length} demo tasks.`);
 }
 
-reset();
-seedUsers();
-const businessIds = seedBusinesses();
-const projectIds = seedProjects(businessIds);
-seedTasks(businessIds, projectIds);
-console.log("Seed complete.");
+async function main() {
+  await reset();
+  await seedUsers();
+  const businessIds = await seedBusinesses();
+  const projectIds = await seedProjects(businessIds);
+  await seedTasks(businessIds, projectIds);
+  console.log("Seed complete.");
+  process.exit(0);
+}
+
+main().catch((err) => {
+  console.error("Seed failed:", err instanceof Error ? err.message : err);
+  process.exit(1);
+});

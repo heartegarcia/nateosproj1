@@ -10,7 +10,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const entry = getEntryById(id);
+  const entry = await getEntryById(id);
   if (!entry) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ entry });
 }
@@ -29,14 +29,14 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  if (parsed.data.title !== undefined) updateEntryTitle(id, parsed.data.title);
+  if (parsed.data.title !== undefined) await updateEntryTitle(id, parsed.data.title);
   if (parsed.data.values) {
     for (const [fieldId, value] of Object.entries(parsed.data.values)) {
-      setEntryValue(id, fieldId, value);
+      await setEntryValue(id, fieldId, value);
     }
   }
 
-  const entry = getEntryById(id);
+  const entry = await getEntryById(id);
   if (!entry) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ entry });
 }
@@ -46,6 +46,6 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  softDeleteEntry(id);
+  await softDeleteEntry(id);
   return NextResponse.json({ ok: true });
 }

@@ -7,7 +7,7 @@ export async function GET() {
   const session = await requireSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  return NextResponse.json({ invoices: listInvoices() });
+  return NextResponse.json({ invoices: await listInvoices() });
 }
 
 const schema = z.object({

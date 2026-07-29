@@ -10,7 +10,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const doc = getSopDocumentById(id);
+  const doc = await getSopDocumentById(id);
   if (!doc || doc.deleted_at) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const diskPath = resolveSopDocumentDiskPath(doc);

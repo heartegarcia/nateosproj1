@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   const to = url.searchParams.get("to") || undefined;
   const unbilledOnly = url.searchParams.get("unbilledOnly") === "true";
 
-  return NextResponse.json({ entries: listEntries({ from, to, unbilledOnly }) });
+  return NextResponse.json({ entries: await listEntries({ from, to, unbilledOnly }) });
 }
 
 const createSchema = z.object({
@@ -31,6 +31,6 @@ export async function POST(request: Request) {
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const entry = createManualEntry(parsed.data);
+  const entry = await createManualEntry(parsed.data);
   return NextResponse.json({ entry }, { status: 201 });
 }

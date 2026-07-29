@@ -151,7 +151,7 @@ export function AppShell({
   );
 
   return (
-    <div className="flex min-h-screen flex-1 bg-zinc-50">
+    <div className="app-gradient-bg flex min-h-screen flex-1">
       {/* Desktop sidebar */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-zinc-200 bg-white md:flex">
         <SidebarHeader />

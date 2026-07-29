@@ -11,7 +11,9 @@ const BASE_SELECT = `
   WHERE t.deleted_at IS NULL
 `;
 
-function hydrate(row: TaskRow & { business_name: string; business_color: string; project_name: string | null }, today: Date): Task {
+type TaskJoinRow = TaskRow & { business_name: string; business_color: string; project_name: string | null };
+
+function hydrate(row: TaskJoinRow, today: Date): Task {
   const { effective, isOverdue, isAutoEscalated } = computeEffectivePriority(row.base_priority, row.due_date, row.status, today);
   return {
     ...row,
@@ -22,7 +24,7 @@ function hydrate(row: TaskRow & { business_name: string; business_color: string;
   };
 }
 
-export function listTasks(filters: TaskFilters = {}, today: Date = new Date()): Task[] {
+export async function listTasks(filters: TaskFilters = {}, today: Date = new Date()): Promise<Task[]> {
   const clauses: string[] = [];
   const params: Record<string, unknown> = {};
 
@@ -56,43 +58,43 @@ export function listTasks(filters: TaskFilters = {}, today: Date = new Date()): 
   }
 
   const sql = BASE_SELECT + (clauses.length ? " AND " + clauses.join(" AND ") : "");
-  const rows = db.prepare(sql).all(params) as Array<TaskRow & { business_name: string; business_color: string; project_name: string | null }>;
+  const rows = await db.prepare(sql).all<TaskJoinRow>(params);
   return rows.map((r) => hydrate(r, today));
 }
 
-export function getTaskById(id: string): Task | null {
-  const row = db
-    .prepare(BASE_SELECT + " AND t.id = @id")
-    .get({ id }) as (TaskRow & { business_name: string; business_color: string; project_name: string | null }) | undefined;
+export async function getTaskById(id: string): Promise<Task | null> {
+  const row = await db.prepare(BASE_SELECT + " AND t.id = @id").get<TaskJoinRow>({ id });
   if (!row) return null;
   return hydrate(row, new Date());
 }
 
-export function createTask(input: CreateTaskInput): Task {
+export async function createTask(input: CreateTaskInput): Promise<Task> {
   const id = randomUUID();
   const now = new Date().toISOString();
-  db.prepare(
-    `INSERT INTO tasks (id, title, business_id, project_id, assignee, status, base_priority, due_date, notes, channels, content_stage, created_at)
-     VALUES (@id, @title, @businessId, @projectId, @assignee, @status, @basePriority, @dueDate, @notes, @channels, @contentStage, @createdAt)`
-  ).run({
-    id,
-    title: input.title,
-    businessId: input.businessId,
-    projectId: input.projectId ?? null,
-    assignee: input.assignee ?? "genie",
-    status: input.status ?? "not_started",
-    basePriority: input.basePriority ?? "medium",
-    dueDate: input.dueDate ?? null,
-    notes: input.notes ?? null,
-    channels: input.channels && input.channels.length ? input.channels.join(",") : null,
-    contentStage: input.contentStage ?? null,
-    createdAt: now,
-  });
-  return getTaskById(id)!;
+  await db
+    .prepare(
+      `INSERT INTO tasks (id, title, business_id, project_id, assignee, status, base_priority, due_date, notes, channels, content_stage, created_at)
+       VALUES (@id, @title, @businessId, @projectId, @assignee, @status, @basePriority, @dueDate, @notes, @channels, @contentStage, @createdAt)`
+    )
+    .run({
+      id,
+      title: input.title,
+      businessId: input.businessId,
+      projectId: input.projectId ?? null,
+      assignee: input.assignee ?? "genie",
+      status: input.status ?? "not_started",
+      basePriority: input.basePriority ?? "medium",
+      dueDate: input.dueDate ?? null,
+      notes: input.notes ?? null,
+      channels: input.channels && input.channels.length ? input.channels.join(",") : null,
+      contentStage: input.contentStage ?? null,
+      createdAt: now,
+    });
+  return (await getTaskById(id))!;
 }
 
-export function updateTask(id: string, input: UpdateTaskInput): Task | null {
-  const existing = getTaskById(id);
+export async function updateTask(id: string, input: UpdateTaskInput): Promise<Task | null> {
+  const existing = await getTaskById(id);
   if (!existing) return null;
 
   const fields: string[] = [];
@@ -128,10 +130,10 @@ export function updateTask(id: string, input: UpdateTaskInput): Task | null {
 
   if (fields.length === 0) return existing;
 
-  db.prepare(`UPDATE tasks SET ${fields.join(", ")} WHERE id = @id`).run(params);
+  await db.prepare(`UPDATE tasks SET ${fields.join(", ")} WHERE id = @id`).run(params);
   return getTaskById(id);
 }
 
-export function softDeleteTask(id: string): void {
-  db.prepare("UPDATE tasks SET deleted_at = @now WHERE id = @id").run({ id, now: new Date().toISOString() });
+export async function softDeleteTask(id: string): Promise<void> {
+  await db.prepare("UPDATE tasks SET deleted_at = @now WHERE id = @id").run({ id, now: new Date().toISOString() });
 }

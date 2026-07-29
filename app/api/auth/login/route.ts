@@ -12,7 +12,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Email and password are required." }, { status: 400 });
   }
 
-  const user = getUserByEmail(email);
+  let user;
+  try {
+    user = await getUserByEmail(email);
+  } catch (err) {
+    // Surfaces as a normal 500 with a real message instead of crashing the whole
+    // serverless function (FUNCTION_INVOCATION_FAILED) — almost always means
+    // DATABASE_URL is missing/wrong for this environment, or Supabase rejected the
+    // connection. Logged so it shows up in Vercel's Function Logs.
+    console.error("Login failed to reach the database:", err instanceof Error ? err.message : err);
+    return NextResponse.json({ error: "Server error — the database is unreachable. Try again shortly." }, { status: 500 });
+  }
+
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
     return NextResponse.json({ error: "Invalid email or password." }, { status: 401 });
   }

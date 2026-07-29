@@ -3,17 +3,25 @@ import type { InvoiceSettings, UpdateInvoiceSettingsInput } from "./types";
 
 const SINGLETON_ID = "singleton";
 
-export function getInvoiceSettings(): InvoiceSettings {
-  const row = db.prepare("SELECT * FROM invoice_settings WHERE id = ?").get(SINGLETON_ID) as InvoiceSettings | undefined;
+export async function getInvoiceSettings(): Promise<InvoiceSettings> {
+  const row = await db
+    .prepare("SELECT * FROM invoice_settings WHERE id = ?")
+    .get<InvoiceSettings>(SINGLETON_ID);
   if (row) return row;
-  db.prepare(
-    "INSERT INTO invoice_settings (id, full_name, bank_details, hourly_rate, payment_terms) VALUES (?, NULL, NULL, NULL, NULL)"
-  ).run(SINGLETON_ID);
-  return db.prepare("SELECT * FROM invoice_settings WHERE id = ?").get(SINGLETON_ID) as InvoiceSettings;
+
+  await db
+    .prepare(
+      `INSERT INTO invoice_settings (id, full_name, bank_details, hourly_rate, payment_terms)
+       VALUES (?, NULL, NULL, NULL, NULL) ON CONFLICT (id) DO NOTHING`
+    )
+    .run(SINGLETON_ID);
+  return (await db
+    .prepare("SELECT * FROM invoice_settings WHERE id = ?")
+    .get<InvoiceSettings>(SINGLETON_ID))!;
 }
 
-export function updateInvoiceSettings(input: UpdateInvoiceSettingsInput): InvoiceSettings {
-  getInvoiceSettings(); // ensure the row exists
+export async function updateInvoiceSettings(input: UpdateInvoiceSettingsInput): Promise<InvoiceSettings> {
+  await getInvoiceSettings(); // ensure the row exists
 
   const fields: string[] = [];
   const params: Record<string, unknown> = { id: SINGLETON_ID };
@@ -30,7 +38,7 @@ export function updateInvoiceSettings(input: UpdateInvoiceSettingsInput): Invoic
     }
   }
   if (fields.length > 0) {
-    db.prepare(`UPDATE invoice_settings SET ${fields.join(", ")} WHERE id = @id`).run(params);
+    await db.prepare(`UPDATE invoice_settings SET ${fields.join(", ")} WHERE id = @id`).run(params);
   }
   return getInvoiceSettings();
 }

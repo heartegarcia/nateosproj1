@@ -32,3 +32,11 @@ body {
 .input-select {
   @apply w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400 disabled:border-transparent disabled:bg-zinc-50 disabled:px-0 disabled:text-zinc-500;
 }
+
+/* Soft, eye-friendly white-to-blue backdrop for the authenticated app shell. Kept pale
+   enough that the existing zinc-900/500/400 text palette (already a comfortable, muted
+   neutral gray, not harsh black) keeps its contrast — white cards float on top of this. */
+.app-gradient-bg {
+  min-height: 100vh;
+  background: linear-gradient(160deg, #ffffff 0%, #f2f7fd 35%, #e3edfb 70%, #d8e6fa 100%);
+}

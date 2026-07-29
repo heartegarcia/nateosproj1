@@ -10,7 +10,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const project = getProjectById(id);
+  const project = await getProjectById(id);
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ project });
 }
@@ -34,11 +34,11 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  if (parsed.data.viewMode) updateProjectViewMode(id, parsed.data.viewMode);
+  if (parsed.data.viewMode) await updateProjectViewMode(id, parsed.data.viewMode);
   if (parsed.data.status || parsed.data.health) {
-    updateProject(id, { status: parsed.data.status, health: parsed.data.health });
+    await updateProject(id, { status: parsed.data.status, health: parsed.data.health });
   }
-  const project = getProjectById(id);
+  const project = await getProjectById(id);
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ project });
 }
@@ -49,6 +49,6 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   if (session.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
-  softDeleteProject(id);
+  await softDeleteProject(id);
   return NextResponse.json({ ok: true });
 }

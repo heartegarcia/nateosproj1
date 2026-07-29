@@ -2,27 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { format, parseISO } from "date-fns";
-import { MessageSquarePlus } from "lucide-react";
+import { format } from "date-fns";
 import { useTaskData } from "@/lib/client/useTaskData";
 import { fetchCalendarItems, updateTaskClient } from "@/lib/client/api";
 import { urgencySort } from "@/lib/client/filtering";
 import { TaskCalendar, type CalendarExtraItem } from "@/components/TaskCalendar";
 import { TaskDrawer } from "@/components/TaskDrawer";
+import { TaskList } from "@/components/TaskList";
 import { ExecutiveBriefingPanel } from "@/components/ExecutiveBriefingPanel";
-import { PriorityBadge } from "@/components/PriorityBadge";
-import { BusinessChip } from "@/components/BusinessChip";
 import { SummaryTiles, type Tile } from "@/components/SummaryTiles";
-import type { Role, Task } from "@/lib/types";
-
-function fmtDate(iso: string | null) {
-  if (!iso) return "No due date";
-  try {
-    return format(parseISO(iso), "EEE, MMM d");
-  } catch {
-    return "—";
-  }
-}
+import type { Role, Task, TaskStatus } from "@/lib/types";
 
 type TileKey = "needs_action" | "overdue" | "due_today";
 
@@ -92,21 +81,14 @@ export function ExecutiveDashboardClient({ displayName, role }: { displayName: s
 
   const sorted = useMemo(() => urgencySort(filtered), [filtered]);
 
-  async function markDone(task: Task) {
-    const next = task.status === "completed" ? "not_started" : "completed";
-    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: next } : t)));
-    await updateTaskClient(task.id, { status: next });
-    refetchTasks();
-  }
-
-  async function saveNote(task: Task, note: string) {
-    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, nate_note: note } : t)));
-    await updateTaskClient(task.id, { nateNote: note });
+  async function handleStatusChange(task: Task, status: TaskStatus) {
+    setTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status } : t)));
+    await updateTaskClient(task.id, { status });
     refetchTasks();
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 sm:py-10">
+    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-10">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-2">
         <div>
           <h1 className="text-2xl font-semibold text-zinc-900">Hey {displayName}</h1>
@@ -151,22 +133,13 @@ export function ExecutiveDashboardClient({ displayName, role }: { displayName: s
             if (href) router.push(href);
           }}
         />
-      ) : sorted.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-zinc-200 bg-white py-14 text-center text-sm text-zinc-400">
-          {activeTile ? "Nothing matches that filter." : "Nothing needs you right now."}
-        </div>
       ) : (
-        <ul className="space-y-3">
-          {sorted.map((task) => (
-            <ExecutiveTaskRow
-              key={task.id}
-              task={task}
-              onMarkDone={() => markDone(task)}
-              onSaveNote={(note) => saveNote(task, note)}
-              onOpen={() => setSelected(task)}
-            />
-          ))}
-        </ul>
+        <TaskList
+          tasks={sorted}
+          onOpenTask={setSelected}
+          onStatusChange={handleStatusChange}
+          emptyMessage={activeTile ? "Nothing matches that filter." : "Nothing needs you right now."}
+        />
       )}
 
       {selected && (
@@ -184,88 +157,5 @@ export function ExecutiveDashboardClient({ displayName, role }: { displayName: s
         />
       )}
     </div>
-  );
-}
-
-function ExecutiveTaskRow({
-  task,
-  onMarkDone,
-  onSaveNote,
-  onOpen,
-}: {
-  task: Task;
-  onMarkDone: () => void;
-  onSaveNote: (note: string) => void;
-  onOpen: () => void;
-}) {
-  const [noteOpen, setNoteOpen] = useState(false);
-  const [note, setNote] = useState(task.nate_note ?? "");
-
-  return (
-    <li className="rounded-2xl border border-zinc-200 bg-white p-4 sm:p-5">
-      <div className="flex items-start gap-3">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onMarkDone();
-          }}
-          title="Mark done"
-          className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-            task.status === "completed" ? "border-emerald-500 bg-emerald-500 text-white" : "border-zinc-300 hover:border-zinc-500"
-          }`}
-        >
-          {task.status === "completed" && "✓"}
-        </button>
-
-        <div className="min-w-0 flex-1 cursor-pointer" onClick={onOpen}>
-          <p className={`text-base font-medium ${task.status === "completed" ? "text-zinc-400 line-through" : "text-zinc-900"}`}>
-            {task.title}
-          </p>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2">
-            <BusinessChip name={task.business_name} color={task.business_color} />
-            <span className="text-xs text-zinc-500">{fmtDate(task.due_date)}</span>
-            <PriorityBadge task={task} />
-          </div>
-        </div>
-      </div>
-
-      {noteOpen ? (
-        <div className="mt-3 pl-9" onClick={(e) => e.stopPropagation()}>
-          <textarea
-            autoFocus
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={2}
-            placeholder="Respond without a chat message…"
-            className="w-full resize-none rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-400"
-          />
-          <div className="mt-2 flex gap-2">
-            <button
-              onClick={() => {
-                onSaveNote(note);
-                setNoteOpen(false);
-              }}
-              className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white"
-            >
-              Save note
-            </button>
-            <button onClick={() => setNoteOpen(false)} className="rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-500">
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setNoteOpen(true);
-          }}
-          className="mt-2 flex items-center gap-1.5 pl-9 text-xs font-medium text-zinc-400 hover:text-zinc-600"
-        >
-          <MessageSquarePlus size={13} />
-          {task.nate_note ? "Edit note" : "Add note"}
-        </button>
-      )}
-    </li>
   );
 }

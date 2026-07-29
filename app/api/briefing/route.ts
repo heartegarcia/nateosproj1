@@ -8,5 +8,5 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const today = url.searchParams.get("today") ?? undefined;
-  return NextResponse.json({ briefing: getExecutiveBriefing(today) });
+  return NextResponse.json({ briefing: await getExecutiveBriefing(today) });
 }

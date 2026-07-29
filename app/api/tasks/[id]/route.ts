@@ -26,7 +26,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const task = getTaskById(id);
+  const task = await getTaskById(id);
   if (!task) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ task });
 }
@@ -42,10 +42,10 @@ export async function PATCH(request: Request, { params }: RouteContext) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
-  const task = updateTask(id, parsed.data);
+  const task = await updateTask(id, parsed.data);
   if (!task) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  syncEntryForTask(task.id, task.project_id, task.title);
-  syncSocialSlotForTask(task);
+  await syncEntryForTask(task.id, task.project_id, task.title);
+  await syncSocialSlotForTask(task);
   return NextResponse.json({ task });
 }
 
@@ -54,6 +54,6 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  softDeleteTask(id);
+  await softDeleteTask(id);
   return NextResponse.json({ ok: true });
 }

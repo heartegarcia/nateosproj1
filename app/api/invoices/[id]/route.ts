@@ -9,7 +9,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const invoice = getInvoiceById(id);
+  const invoice = await getInvoiceById(id);
   if (!invoice) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ invoice });
 }
@@ -20,7 +20,7 @@ export async function PATCH(_request: Request, { params }: RouteContext) {
   if (session.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
-  const invoice = markInvoicePaid(id);
+  const invoice = await markInvoicePaid(id);
   if (!invoice) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ invoice });
 }

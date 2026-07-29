@@ -9,7 +9,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const slot = getSlotById(id);
+  const slot = await getSlotById(id);
   if (!slot) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ attachments: slot.attachments });
 }
@@ -19,7 +19,7 @@ export async function POST(request: Request, { params }: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  const slot = getSlotById(id);
+  const slot = await getSlotById(id);
   if (!slot) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const formData = await request.formData();

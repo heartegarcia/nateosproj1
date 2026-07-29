@@ -9,5 +9,5 @@ export async function GET(_request: Request, { params }: RouteContext) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;
-  return NextResponse.json({ entries: listEntries({ invoiceId: id }) });
+  return NextResponse.json({ entries: await listEntries({ invoiceId: id }) });
 }

@@ -9,7 +9,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/login");
   }
 
-  const businesses = listBusinesses();
+  const businesses = await listBusinesses();
 
   return (
     <AppShell displayName={session.displayName} role={session.role} businesses={businesses}>

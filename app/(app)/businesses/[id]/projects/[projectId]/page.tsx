@@ -10,16 +10,17 @@ export default async function ProjectDetailPage({
   params: Promise<{ id: string; projectId: string }>;
 }) {
   const { id, projectId } = await params;
-  const business = getBusinessById(id);
-  const project = getProjectById(projectId);
+  const business = await getBusinessById(id);
+  const project = await getProjectById(projectId);
   if (!business || !project || project.business_id !== business.id) notFound();
 
-  const parentProject = project.parent_project_id ? getProjectById(project.parent_project_id) : null;
+  const parentProject = project.parent_project_id ? await getProjectById(project.parent_project_id) : null;
 
   const session = await getSession();
 
   return (
     <ProjectDetailClient
+      key={project.id}
       business={business}
       project={project}
       parentProject={parentProject}

@@ -22,7 +22,7 @@ export async function PATCH(request: Request, { params }: RouteContext) {
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const entry = updateEntry(id, parsed.data);
+  const entry = await updateEntry(id, parsed.data);
   if (!entry) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ entry });
 }
@@ -33,6 +33,6 @@ export async function DELETE(_request: Request, { params }: RouteContext) {
   if (session.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const { id } = await params;
-  softDeleteEntry(id);
+  await softDeleteEntry(id);
   return NextResponse.json({ ok: true });
 }

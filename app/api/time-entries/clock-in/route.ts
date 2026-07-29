@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (session.role !== "admin") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  if (getRunningEntry()) {
+  if (await getRunningEntry()) {
     return NextResponse.json({ error: "Already clocked in." }, { status: 409 });
   }
 
@@ -18,6 +18,6 @@ export async function POST(request: Request) {
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const entry = clockIn(parsed.data.workDate, parsed.data.startTime);
+  const entry = await clockIn(parsed.data.workDate, parsed.data.startTime);
   return NextResponse.json({ entry }, { status: 201 });
 }

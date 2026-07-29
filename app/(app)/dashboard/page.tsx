@@ -7,6 +7,6 @@ export const metadata: Metadata = { title: "Nate-ification | Nate OS" };
 
 export default async function DashboardPage() {
   const session = await getSession();
-  const nate = getUserByRole("executive");
+  const nate = await getUserByRole("executive");
   return <ExecutiveDashboardClient displayName={nate?.display_name ?? "Nate"} role={session.role ?? "executive"} />;
 }

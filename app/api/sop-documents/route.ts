@@ -13,7 +13,7 @@ export async function GET(request: Request) {
   const category = url.searchParams.get("category");
   const search = url.searchParams.get("search")?.toLowerCase().trim();
 
-  let documents = listSopDocuments();
+  let documents = await listSopDocuments();
   if (category) documents = documents.filter((d) => d.category === category);
   if (search) documents = documents.filter((d) => d.title.toLowerCase().includes(search));
 
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
   const parsed = linkSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const document = createSopLinkDocument(
+  const document = await createSopLinkDocument(
     parsed.data.title,
     parsed.data.category,
     parsed.data.externalUrl,

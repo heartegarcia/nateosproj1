@@ -178,6 +178,12 @@ export interface EntryAttachment {
   deleted_at: string | null;
 }
 
+export interface ReviewTaskSummary {
+  id: string;
+  title: string;
+  business_name: string;
+}
+
 export interface DailyReview {
   id: string;
   review_date: string;
@@ -186,12 +192,20 @@ export interface DailyReview {
   tomorrow: string | null;
   created_at: string;
   updated_at: string;
+  // Snapshotted each time "today" is viewed in Review Center — null means this date was
+  // never visited, so the point-in-time state (in progress/waiting/overdue) is unknown.
+  in_progress_summary: ReviewTaskSummary[] | null;
+  waiting_summary: ReviewTaskSummary[] | null;
+  overdue_summary: ReviewTaskSummary[] | null;
 }
 
 export interface UpdateDailyReviewInput {
   wins?: string;
   blockers?: string;
   tomorrow?: string;
+  inProgressSummary?: ReviewTaskSummary[];
+  waitingSummary?: ReviewTaskSummary[];
+  overdueSummary?: ReviewTaskSummary[];
 }
 
 export type SopCategory = "sop" | "contract" | "playbook" | "training" | "onboarding" | "other";
