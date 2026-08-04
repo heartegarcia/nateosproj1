@@ -1,14 +1,11 @@
 import { randomUUID } from "node:crypto";
-import fs from "node:fs";
 import path from "node:path";
 import { db } from "./db";
+import { downloadFile, uploadFile } from "./storage";
 import { updateTask } from "./tasks";
 import type { ContentStage, SocialAttachment, SocialSlot, Task } from "./types";
 
 export const SOCIAL_BUSINESS_NAME = "Social Media";
-
-// See lib/attachments.ts — local-disk storage, pending the Supabase Storage migration.
-const storageRoot = path.join(process.cwd(), "data", "social-attachments");
 
 interface SlotRow {
   id: string;
@@ -136,14 +133,11 @@ export async function getAttachmentById(id: string): Promise<SocialAttachment | 
 }
 
 export async function saveSlotAttachment(slotId: string, file: File): Promise<SocialAttachment> {
-  const dir = path.join(storageRoot, slotId);
-  fs.mkdirSync(dir, { recursive: true });
-
   const id = randomUUID();
   const ext = path.extname(file.name);
-  const storedFileName = `${id}${ext}`;
+  const storageKey = `social/${slotId}/${id}${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
-  fs.writeFileSync(path.join(dir, storedFileName), buffer);
+  await uploadFile(storageKey, buffer, file.type);
 
   const now = new Date().toISOString();
   await db
@@ -155,7 +149,7 @@ export async function saveSlotAttachment(slotId: string, file: File): Promise<So
       id,
       slotId,
       fileName: file.name,
-      storagePath: path.join(slotId, storedFileName),
+      storagePath: storageKey,
       fileSize: buffer.byteLength,
       uploadedAt: now,
     });
@@ -166,8 +160,8 @@ export async function saveSlotAttachment(slotId: string, file: File): Promise<So
   return (await getAttachmentById(id))!;
 }
 
-export function resolveSlotAttachmentDiskPath(attachment: SocialAttachment): string {
-  return path.join(storageRoot, attachment.storage_path);
+export async function getSlotAttachmentBuffer(attachment: SocialAttachment): Promise<Buffer | null> {
+  return downloadFile(attachment.storage_path);
 }
 
 export async function softDeleteSlotAttachment(id: string): Promise<void> {

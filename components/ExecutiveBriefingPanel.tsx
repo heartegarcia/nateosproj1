@@ -5,18 +5,12 @@ import Link from "next/link";
 import { format, parseISO } from "date-fns";
 import { AlertTriangle, CalendarDays, CheckCircle2, FileWarning } from "lucide-react";
 import { fetchBriefing, todayLocalISO } from "@/lib/client/api";
-import type { ExecutiveBriefing, ProjectHealth } from "@/lib/types";
-
-const HEALTH_DOT: Record<ProjectHealth, string> = {
-  on_track: "bg-emerald-500",
-  at_risk: "bg-amber-500",
-  behind: "bg-red-500",
-};
+import type { ExecutiveBriefing } from "@/lib/types";
 
 /**
  * Everything Nate needs to understand in under 60 seconds, aggregated server-side into
- * one call: next event, application pipeline counts, each client's health + latest
- * dashboard version, this week's content-ready count, and a documentation-health flag.
+ * one call: next event, application pipeline counts, this week's content-ready count,
+ * and a documentation-health flag.
  */
 export function ExecutiveBriefingPanel() {
   const [briefing, setBriefing] = useState<ExecutiveBriefing | null>(null);
@@ -35,7 +29,6 @@ export function ExecutiveBriefingPanel() {
   if (!briefing) return null;
 
   const hasApplications = briefing.applications.length > 0;
-  const hasClients = briefing.clients.length > 0;
 
   return (
     <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -76,24 +69,6 @@ export function ExecutiveBriefingPanel() {
               </div>
             ))}
           </div>
-        </BriefingCard>
-      )}
-
-      {hasClients && (
-        <BriefingCard icon={FileWarning} title="Clients">
-          <ul className="space-y-1.5">
-            {briefing.clients.map((c) => (
-              <li key={c.projectId} className="flex items-center justify-between gap-2">
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${HEALTH_DOT[c.health]}`} />
-                  <span className="truncate text-sm text-zinc-800">{c.name}</span>
-                </span>
-                <span className="shrink-0 truncate text-xs text-zinc-400">
-                  {c.latestDashboardVersion ?? "—"}
-                </span>
-              </li>
-            ))}
-          </ul>
         </BriefingCard>
       )}
 

@@ -112,17 +112,3 @@ export async function softDeleteProject(id: string): Promise<void> {
     )
     .run({ id, now: new Date().toISOString() });
 }
-
-/** Top-level projects that have child sub-projects — the generalized "client" shape
- * (Mydas today, potentially other nested businesses later). Used by the Executive
- * Briefing to surface per-client health/status without hardcoding a business name. */
-export async function listClientLikeProjects(): Promise<Project[]> {
-  return db
-    .prepare(
-      `SELECT * FROM projects p
-       WHERE p.parent_project_id IS NULL AND p.deleted_at IS NULL
-         AND EXISTS (SELECT 1 FROM projects c WHERE c.parent_project_id = p.id AND c.deleted_at IS NULL)
-       ORDER BY p.created_at ASC`
-    )
-    .all<Project>();
-}

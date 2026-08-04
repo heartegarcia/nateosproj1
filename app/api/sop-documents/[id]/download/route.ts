@@ -1,7 +1,6 @@
-import fs from "node:fs";
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth";
-import { getSopDocumentById, resolveSopDocumentDiskPath } from "@/lib/sopDocuments";
+import { getSopDocumentBuffer, getSopDocumentById } from "@/lib/sopDocuments";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -13,12 +12,11 @@ export async function GET(_request: Request, { params }: RouteContext) {
   const doc = await getSopDocumentById(id);
   if (!doc || doc.deleted_at) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const diskPath = resolveSopDocumentDiskPath(doc);
-  if (!diskPath || !fs.existsSync(diskPath)) {
-    return NextResponse.json({ error: "File missing on disk" }, { status: 404 });
+  const bytes = await getSopDocumentBuffer(doc);
+  if (!bytes) {
+    return NextResponse.json({ error: "File missing in storage" }, { status: 404 });
   }
 
-  const bytes = fs.readFileSync(diskPath);
   return new NextResponse(new Uint8Array(bytes), {
     headers: {
       "Content-Type": "application/octet-stream",

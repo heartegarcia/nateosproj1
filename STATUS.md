@@ -4,15 +4,52 @@ Living status doc for the executive command center. See `README.md` for setup/ru
 demo login accounts, and `spec.md` for the original product spec. This file tracks what's done, what
 isn't, and the reasoning behind non-obvious decisions — update it after any future round of work.
 
-_Last updated: 2026-07-24_
+_Last updated: 2026-08-04_
 
 ## Summary
 
 All 6 phases of the original spec are built, plus several rounds of revisions and a set of
-"executive OS" upgrades (search, briefing, documentation timeline) added after the fact. The app is
-in daily use by Genie against a real local SQLite database — this is not just a demo shell.
+"executive OS" upgrades (search, briefing, documentation timeline) added after the fact. The app has
+been migrated off local SQLite onto Supabase Postgres and is now deployed and running live on Vercel,
+connected to GitHub for deploys.
 
 ## Completed
+
+### Production deployment (Supabase + Vercel) — 2026-07-30
+- Migrated the database layer from local SQLite (`better-sqlite3`) to Supabase Postgres (`postgres`
+  client, transaction pooler). See "Architecture" notes below for the shape of this change.
+- Connected GitHub, Supabase, and Vercel: the app deploys to Vercel automatically from `main` on
+  `github.com/heartegarcia/nateosproj1`, reading data from a Supabase Postgres project.
+- Configured `DATABASE_URL` and `SESSION_SECRET` in Vercel's Production environment variables.
+- Diagnosed and fixed a production-only login crash (`FUNCTION_INVOCATION_FAILED`): the deployed app
+  had been running the old pre-migration SQLite code (the migration commit had never actually been
+  pushed to GitHub), which tried to `mkdir` a local data directory on Vercel's read-only serverless
+  filesystem. Fixed by committing and pushing the full migration.
+- Verified end-to-end on the live Vercel URL: login works, the dashboard loads, and core features
+  (viewing/creating/managing tasks and project data) work correctly against Supabase in production.
+
+### Live-testing fixes — 2026-08-04
+- **File uploads — migrated to Supabase Storage, verified working locally, not yet deployed.**
+  All five local-disk storage locations — task attachments, project entry attachments, SOP
+  documents, social content attachments, invoice PDFs — now go through `lib/storage.ts` (bucket
+  `uploads`). Upload → download → delete round-tripped correctly end-to-end against real Supabase
+  Storage in local dev. `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set locally; **still need
+  to be added to Vercel's Production environment variables** before this works on the live site.
+  Storage's client init is intentionally lazy (only throws when an upload/download is actually
+  attempted) specifically so a missing/misconfigured key can't crash unrelated routes — see
+  Architecture notes.
+- **Slow page loads, fixed**: two compounding causes. (1) Vercel was deploying functions to its
+  default US region while the Supabase database runs in `ap-southeast-1` (Singapore) — every query
+  paid a trans-Pacific round trip. Pinned via `vercel.json` (`"regions": ["sin1"]`). (2) The
+  Executive Briefing (`lib/briefing.ts`) ran its ~6 independent queries sequentially, and two of its
+  helper functions issued further queries in an un-parallelized loop (N+1) — all now run via
+  `Promise.all`.
+- **Nate-ification scope, fixed**: the Executive Briefing panel's "Clients" card listed every
+  top-level project with sub-folders (i.e. every Mydas client), so creating a new client/folder made
+  it appear on Nate's dashboard even though he has no task tied to it. Removed the Clients card (and
+  the now-unused `listClientLikeProjects`/`ClientBriefing`) per explicit decision to keep
+  Nate-ification scoped to only tasks assigned to him (which already includes invoice-approval
+  tasks) — Next Up, Content This Week, and Applications cards are unaffected.
 
 ### Core task engine
 - Single `tasks` table; every view (Action Center, Nate-ification, Business pages, calendars) is a
@@ -27,8 +64,8 @@ in daily use by Genie against a real local SQLite database — this is not just 
   Pacific clock.
 - Nate-ification (`/dashboard`, nav label only — route unchanged): Nate's tasks, urgency-sorted,
   one-tap complete, inline notes, an **Executive Briefing panel** (next event, application pipeline
-  counts, per-client health + latest deliverable version, content-ready-this-week, a documentation
-  gap count) — designed to answer "what's happening" in under 60 seconds.
+  counts, content-ready-this-week, a documentation gap count) — designed to answer "what's happening"
+  in under 60 seconds, deliberately scoped to only what's assigned to him (no cross-business rollup).
 - Global search (`⌘K` / `Ctrl+K`, or the sidebar "Search" button): finds tasks, filed records,
   projects, and attachment file names from anywhere in the app.
 
@@ -103,9 +140,14 @@ These were explicitly scoped as post-MVP or "later" and haven't been started:
 - **Saved filter views** (e.g. "My day," "Submitted applications").
 - **Proactive daily brief** — the Executive Briefing is pull (visit the page), not push (emailed/
   sent each morning).
-- Migrating off local SQLite to a real hosted backend (Supabase/Postgres) — deferred until/unless
-  the app needs to leave Genie's machine. The DB layer is isolated (see Notes) specifically so this
-  migration doesn't require touching anything above it.
+
+## Known issues
+
+- **File uploads still don't work in production — one deploy step left.** The Supabase Storage
+  migration (see "Live-testing fixes" above) is verified working end-to-end locally. Uploads will
+  keep failing on the live site until `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are added to
+  Vercel's Production environment variables and this branch is deployed. This is the current top
+  priority.
 
 ## Known minor issues
 
@@ -115,27 +157,45 @@ These were explicitly scoped as post-MVP or "later" and haven't been started:
 
 ## Notes for future development
 
-- **Architecture**: the SQLite layer is isolated in `lib/db.ts`, `lib/tasks.ts`, `lib/businesses.ts`,
-  `lib/projects.ts`, `lib/users.ts`. A future migration to Postgres/Supabase means reimplementing
-  those query functions with the same signatures — nothing in `app/api/*` or `components/*` should
-  need to change.
-- **Dev server restarts required after schema changes.** `globalThis.__nateOsDb` caches the open
-  SQLite connection across Turbopack Fast Refresh, so `CREATE TABLE`/`ALTER TABLE` statements in
-  `lib/db.ts` only run once per Node process. If a route 500s with "no such table" right after a
-  schema change, restart the dev server before assuming the code is wrong. Occasionally a *new file*
-  (not just schema) also needs a restart before Turbopack resolves the import, even if `tsc`/`eslint`
-  are clean.
+- **Architecture (post-migration)**: `lib/db.ts` is now an async shim around the `postgres` client
+  (Supabase's transaction pooler, port 6543, `prepare: false`). It translates the app's existing
+  `@named`/`?` placeholder styles into Postgres `$1,$2,...` positional params, so the ~20 `lib/*.ts`
+  data files kept their SQL nearly verbatim — every function just became `async`/`await`. Schema
+  lives in `supabase/schema.sql` (run manually in Supabase's SQL Editor); the one-time SQLite→Postgres
+  data migration script is `scripts/migrate-to-supabase.ts` (`npm run migrate:supabase`).
+- **Connection pool size is environment-aware.** `max: process.env.VERCEL ? 1 : 10` — Vercel gives
+  each invocation its own short-lived process (so `max: 1` avoids exhausting Supabase's pooler
+  connection limit across many concurrent functions), while local `next dev` is one long-lived
+  process serving many concurrent requests, including Next's `<Link>` prefetch bursts (`max: 1`
+  there caused a multi-second dashboard freeze after login against the real network latency of a
+  remote DB — fixed by making pool size env-aware).
+- **Dev server restarts required after `lib/db.ts` config changes.** `globalThis.__nateOsSql` caches
+  the open Postgres client across Turbopack Fast Refresh so it survives hot reloads; a code change to
+  `lib/db.ts` itself needs a full server restart, not just a file save, before it takes effect.
+- **`lib/storage.ts`'s Supabase client is created lazily**, unlike `lib/db.ts`'s eager module-scope
+  throw — deliberately, because Storage is only needed by upload/download functions, but modules that
+  need it for one narrow purpose (e.g. `lib/socialContent.ts`, needed by the briefing for an unrelated
+  content-calendar count) get imported everywhere. An eager throw here previously took down
+  `/api/tasks` and `/api/briefing` just because Storage env vars weren't set yet — don't revert this
+  pattern without checking who transitively imports whichever file you're touching.
 - **Timezone handling is intentionally inconsistent between two areas**: everywhere except the
   Timesheet uses each viewer's own local browser date (Genie/Philippines vs Nate/US both see "today"
   correctly). The Timesheet specifically runs on Pacific time regardless of viewer location, since
   that's the actual payroll timezone — see `lib/client/pacificTime.ts`.
 - **`npm run seed` wipes the tasks table.** Never rerun it against the live local database without
   confirming first — this has been in daily real use since Phase 2.
-- **Generalization pattern**: several features (nested project categories, the "client" concept in
-  the briefing/timeline, calendar-sync fields) are deliberately built as generic mechanisms
-  (`parent_project_id`, "any project with children," a `sync_to_calendar` flag) rather than
-  hardcoded to specific business names like "Mydas" or "Events" — so the same pattern keeps working
-  if another business adopts it later. Follow this pattern rather than special-casing a business
-  name when extending things.
-- **Data directory**: `data/` (the SQLite db, uploaded attachments, generated invoice PDFs) and
-  `.env` are gitignored on purpose — they contain real business data and should never be committed.
+- **Generalization pattern**: several features (nested project categories, the project timeline,
+  calendar-sync fields) are deliberately built as generic mechanisms (`parent_project_id`, "any
+  project with children," a `sync_to_calendar` flag) rather than hardcoded to specific business
+  names like "Mydas" or "Events" — so the same pattern keeps working if another business adopts it
+  later. Follow this pattern rather than special-casing a business name when extending things. (The
+  Executive Briefing no longer surfaces a "clients" rollup at all — see "Live-testing fixes" above —
+  but the underlying `parent_project_id` nesting this pattern was built on is still very much in use
+  elsewhere, e.g. the project timeline and Mydas's own folder structure.)
+- **`.env` is gitignored on purpose** — it contains real credentials and should never be committed.
+
+## Next priority (highest priority)
+
+Get file uploads working in **production**. Verified working end-to-end locally (see "Live-testing
+fixes" above) — the only remaining step is adding `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` to
+Vercel's Production environment variables and deploying.

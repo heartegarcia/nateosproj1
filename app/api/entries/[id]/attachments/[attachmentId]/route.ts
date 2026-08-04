@@ -1,7 +1,6 @@
-import fs from "node:fs";
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth";
-import { getEntryAttachmentById, resolveEntryAttachmentDiskPath, softDeleteEntryAttachment } from "@/lib/entryAttachments";
+import { getEntryAttachmentBuffer, getEntryAttachmentById, softDeleteEntryAttachment } from "@/lib/entryAttachments";
 
 type RouteContext = { params: Promise<{ id: string; attachmentId: string }> };
 
@@ -15,12 +14,11 @@ export async function GET(_request: Request, { params }: RouteContext) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const diskPath = resolveEntryAttachmentDiskPath(attachment);
-  if (!fs.existsSync(diskPath)) {
-    return NextResponse.json({ error: "File missing on disk" }, { status: 404 });
+  const bytes = await getEntryAttachmentBuffer(attachment);
+  if (!bytes) {
+    return NextResponse.json({ error: "File missing in storage" }, { status: 404 });
   }
 
-  const bytes = fs.readFileSync(diskPath);
   return new NextResponse(new Uint8Array(bytes), {
     headers: {
       "Content-Type": "application/octet-stream",

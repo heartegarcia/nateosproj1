@@ -1,15 +1,8 @@
 import { randomUUID } from "node:crypto";
-import fs from "node:fs";
 import path from "node:path";
 import { db } from "./db";
+import { downloadFile, uploadFile } from "./storage";
 import type { EntryAttachment } from "./types";
-
-// See lib/attachments.ts — local-disk storage, pending the Supabase Storage migration.
-const storageRoot = path.join(process.cwd(), "data", "entry-attachments");
-
-function entryDir(entryId: string) {
-  return path.join(storageRoot, entryId);
-}
 
 export async function listEntryAttachments(entryId: string): Promise<EntryAttachment[]> {
   return db
@@ -24,16 +17,12 @@ export async function getEntryAttachmentById(id: string): Promise<EntryAttachmen
 }
 
 export async function saveEntryAttachment(entryId: string, folder: string, file: File): Promise<EntryAttachment> {
-  const dir = entryDir(entryId);
-  fs.mkdirSync(dir, { recursive: true });
-
   const id = randomUUID();
   const ext = path.extname(file.name);
-  const storedFileName = `${id}${ext}`;
-  const storagePath = path.join(dir, storedFileName);
+  const storageKey = `entries/${entryId}/${id}${ext}`;
 
   const buffer = Buffer.from(await file.arrayBuffer());
-  fs.writeFileSync(storagePath, buffer);
+  await uploadFile(storageKey, buffer, file.type);
 
   const now = new Date().toISOString();
   await db
@@ -46,7 +35,7 @@ export async function saveEntryAttachment(entryId: string, folder: string, file:
       entryId,
       folder: folder.trim() || "General",
       fileName: file.name,
-      storagePath: path.join(entryId, storedFileName),
+      storagePath: storageKey,
       fileSize: buffer.byteLength,
       uploadedAt: now,
     });
@@ -54,8 +43,8 @@ export async function saveEntryAttachment(entryId: string, folder: string, file:
   return (await getEntryAttachmentById(id))!;
 }
 
-export function resolveEntryAttachmentDiskPath(attachment: EntryAttachment): string {
-  return path.join(storageRoot, attachment.storage_path);
+export async function getEntryAttachmentBuffer(attachment: EntryAttachment): Promise<Buffer | null> {
+  return downloadFile(attachment.storage_path);
 }
 
 export async function softDeleteEntryAttachment(id: string): Promise<void> {

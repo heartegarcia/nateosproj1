@@ -1,17 +1,14 @@
 import { randomUUID } from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { db } from "./db";
 import { listBusinesses } from "./businesses";
 import { saveAttachmentFromBuffer } from "./attachments";
+import { downloadFile, uploadFile } from "./storage";
 import { createTask } from "./tasks";
 import { listEntries, markEntriesBilled } from "./timeEntries";
 import { getInvoiceSettings } from "./invoiceSettings";
 import { InvoicePdf } from "./pdf/InvoicePdf";
 import type { Invoice } from "./types";
-
-const storageRoot = path.join(process.cwd(), "data", "invoices");
 
 export async function listInvoices(): Promise<Invoice[]> {
   return db.prepare("SELECT * FROM invoices ORDER BY invoice_number DESC").all<Invoice>();
@@ -21,9 +18,9 @@ export async function getInvoiceById(id: string): Promise<Invoice | null> {
   return (await db.prepare("SELECT * FROM invoices WHERE id = ?").get<Invoice>(id)) ?? null;
 }
 
-export function resolveInvoicePdfPath(invoice: Invoice): string | null {
+export async function getInvoicePdfBuffer(invoice: Invoice): Promise<Buffer | null> {
   if (!invoice.pdf_storage_path) return null;
-  return path.join(storageRoot, invoice.pdf_storage_path);
+  return downloadFile(invoice.pdf_storage_path);
 }
 
 async function getDefaultApprovalBusinessId(): Promise<string> {
@@ -88,7 +85,6 @@ export async function generateInvoice(periodStart: string | null, periodEnd: str
     id
   );
 
-  fs.mkdirSync(storageRoot, { recursive: true });
   const pdfBuffer = await renderToBuffer(
     InvoicePdf({
       invoiceNumber,
@@ -103,8 +99,9 @@ export async function generateInvoice(periodStart: string | null, periodEnd: str
     })
   );
   const pdfFileName = `invoice-${invoiceNumber}.pdf`;
-  fs.writeFileSync(path.join(storageRoot, pdfFileName), pdfBuffer);
-  await db.prepare("UPDATE invoices SET pdf_storage_path = ? WHERE id = ?").run(pdfFileName, id);
+  const storageKey = `invoices/${pdfFileName}`;
+  await uploadFile(storageKey, pdfBuffer, "application/pdf");
+  await db.prepare("UPDATE invoices SET pdf_storage_path = ? WHERE id = ?").run(storageKey, id);
 
   const businessId = await getDefaultApprovalBusinessId();
   const task = await createTask({

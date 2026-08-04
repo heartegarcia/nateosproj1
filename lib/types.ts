@@ -339,15 +339,6 @@ export interface ApplicationStatusBreakdown {
   counts: { label: string; count: number }[];
 }
 
-export interface ClientBriefing {
-  projectId: string;
-  businessId: string;
-  name: string;
-  health: ProjectHealth;
-  status: ProjectStatus;
-  latestDashboardVersion: string | null;
-}
-
 export interface NextEventBriefing {
   id: string;
   title: string;
@@ -361,7 +352,6 @@ export interface ExecutiveBriefing {
   waitingOnNateCount: number;
   nextEvent: NextEventBriefing | null;
   applications: ApplicationStatusBreakdown[];
-  clients: ClientBriefing[];
   contentReadyThisWeek: number;
   contentTotalThisWeek: number;
   missingDocumentationCount: number;

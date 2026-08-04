@@ -1,11 +1,8 @@
 import { randomUUID } from "node:crypto";
-import fs from "node:fs";
 import path from "node:path";
 import { db } from "./db";
+import { downloadFile, uploadFile } from "./storage";
 import type { SopCategory, SopDocument } from "./types";
-
-// See lib/attachments.ts — local-disk storage, pending the Supabase Storage migration.
-const storageRoot = path.join(process.cwd(), "data", "sop-documents");
 
 export async function listSopDocuments(): Promise<SopDocument[]> {
   return db
@@ -23,13 +20,11 @@ export async function createSopFileDocument(
   notes: string | null,
   file: File
 ): Promise<SopDocument> {
-  fs.mkdirSync(storageRoot, { recursive: true });
-
   const id = randomUUID();
   const ext = path.extname(file.name);
-  const storedFileName = `${id}${ext}`;
+  const storageKey = `sop-documents/${id}${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
-  fs.writeFileSync(path.join(storageRoot, storedFileName), buffer);
+  await uploadFile(storageKey, buffer, file.type);
 
   const now = new Date().toISOString();
   await db
@@ -37,7 +32,7 @@ export async function createSopFileDocument(
       `INSERT INTO sop_documents (id, title, category, storage_path, file_name, external_url, notes, created_at)
        VALUES (@id, @title, @category, @storagePath, @fileName, NULL, @notes, @now)`
     )
-    .run({ id, title, category, storagePath: storedFileName, fileName: file.name, notes, now });
+    .run({ id, title, category, storagePath: storageKey, fileName: file.name, notes, now });
 
   return (await getSopDocumentById(id))!;
 }
@@ -59,9 +54,9 @@ export async function createSopLinkDocument(
   return (await getSopDocumentById(id))!;
 }
 
-export function resolveSopDocumentDiskPath(doc: SopDocument): string | null {
+export async function getSopDocumentBuffer(doc: SopDocument): Promise<Buffer | null> {
   if (!doc.storage_path) return null;
-  return path.join(storageRoot, doc.storage_path);
+  return downloadFile(doc.storage_path);
 }
 
 export async function softDeleteSopDocument(id: string): Promise<void> {
